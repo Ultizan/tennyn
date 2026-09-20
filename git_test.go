@@ -126,14 +126,20 @@ func TestStale(t *testing.T) {
 	if s[1].WhenTS != 0 || s[1].Stale {
 		t.Fatalf("never-touched when must not be stale: %+v", s[1])
 	}
-	r.commit(t, 3_000_000, map[string]string{"scripts/a.sh": "2"})
+	// A same-day lag (code lands an hour after docs) is fresh, not stale.
+	r.commit(t, 2_003_600, map[string]string{"scripts/a.sh": "2"})
+	s, _ = Stale(cfg, r)
+	if s[0].Stale || s[0].LagDays != 0 {
+		t.Fatalf("sub-day lag must not be stale: %+v", s[0])
+	}
+	r.commit(t, 3_000_000, map[string]string{"scripts/a.sh": "3"})
 	s, _ = Stale(cfg, r)
 	if !s[0].Stale || s[0].LagDays != 11 {
 		t.Fatalf("stale case wrong: %+v", s[0])
 	}
 	// A verified: header newer than the commit rescues the rule.
 	r.commit(t, 3_500_000, map[string]string{"docs/g.md": "<!-- verified: 2030-01-01 verifies-against: abc1234 -->\n"})
-	r.commit(t, 4_000_000, map[string]string{"scripts/a.sh": "3"})
+	r.commit(t, 4_000_000, map[string]string{"scripts/a.sh": "4"})
 	s, _ = Stale(cfg, r)
 	if s[0].Stale {
 		t.Fatalf("verified header must win: %+v", s[0])

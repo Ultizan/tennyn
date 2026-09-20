@@ -146,8 +146,9 @@ type Staleness struct {
 
 // Stale compares, per rule, the newest commit touching `when` against the
 // newest commit touching `require` (or a newer `verified:` header in a
-// require file). A rule is stale when its watched paths moved after its
-// required paths last did.
+// require file). A rule is stale when its watched paths moved at least a
+// full day (86400s) after its required paths last did; a same-day lag is
+// fresh.
 func Stale(cfg *Config, r repo) ([]Staleness, error) {
 	groups := make([][]Pattern, 0, 2*len(cfg.Rules))
 	for i := range cfg.Rules {
@@ -174,7 +175,7 @@ func Stale(cfg *Config, r repo) ([]Staleness, error) {
 		if v := r.verifiedDate(reqFiles); v > s.RequireTS {
 			s.RequireTS = v
 		}
-		if s.WhenTS > s.RequireTS {
+		if s.WhenTS-s.RequireTS >= 86400 {
 			s.Stale = true
 			s.LagDays = int((s.WhenTS - s.RequireTS) / 86400)
 		}

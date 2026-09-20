@@ -130,12 +130,12 @@ func TestCoverageAndStaleCommands(t *testing.T) {
 	if code != 1 || !strings.Contains(out, "SECURITY.md") || !strings.Contains(out, "uncovered") {
 		t.Fatalf("broken targets must exit 1: %d %q", code, out)
 	}
-	r.commit(t, 2000, map[string]string{"scripts/z.sh": "z"})
+	r.commit(t, 1000+90000, map[string]string{"scripts/z.sh": "z"})
 	code, out, _ = runCLI(t, "", "stale")
 	if code != 1 || !strings.Contains(out, "docs") {
-		t.Fatalf("scripts newer than README at same commit? %d %q", code, out)
+		t.Fatalf("scripts a day+ newer than README? %d %q", code, out)
 	}
-	r.commit(t, 3000, map[string]string{"README.md": "updated"})
+	r.commit(t, 1000+91000, map[string]string{"README.md": "updated"})
 	if code, out, _ = runCLI(t, "", "stale"); code != 0 {
 		t.Fatalf("%d %q", code, out)
 	}

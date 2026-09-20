@@ -56,7 +56,7 @@ Typical rules: infra changed → runbook updated; auth code changed → threat m
 | `tennyn check [--base REF] [--stdin]` | Does this change satisfy every rule it fires? Base is auto-detected on GitHub, Forgejo and ADO PR builds. | a fired rule is neither satisfied nor waived |
 | `tennyn why PATH...` | If I touch these, what must I also update, and who owns it? | never |
 | `tennyn coverage [--all]` | Which files does no rule watch? Which rules watch nothing? Which `require` targets no longer exist? | a require target matches no tracked file |
-| `tennyn stale` | Which rules' watched paths moved after their required paths last did? Honors a `verified: YYYY-MM-DD` header, optionally inside an HTML comment, within the first 2 KiB of a required file. | any rule is stale |
+| `tennyn stale` | Which rules' watched paths last moved at least a day after their required paths did? Honors a `verified: YYYY-MM-DD` header, optionally inside an HTML comment, within the first 2 KiB of a required file. | any rule is stale |
 | `tennyn cheatsheet` | The rules as a markdown table for your CONTRIBUTING or AGENTS file. | never |
 
 Every command takes `--json` (before the command) for machine use and `--config PATH` to point at a different rules file. Exit 2 means a config or git problem and the message says which.
@@ -85,7 +85,7 @@ Patterns are anchored at the repo root. `dir/` means everything under `dir`; a p
 
 - Changed files come from `git diff --name-only <base>...HEAD`; CI checkouts need `fetch-depth: 0`.
 - Waivers are per rule: a docs waiver never waives a security rule.
-- `stale` streams `git log --name-only` newest-first and stops as soon as every rule is resolved, so it is fast on large histories.
+- `stale` streams `git log --name-only` newest-first and stops as soon as every rule is resolved, so it is fast on large histories. A rule is stale only once its watched paths last moved at least a day (86400s) after its required paths did; a same-day lag is fresh.
 - The floating `vN` tag pins the action code; the root `VERSION` file pins the binary tag the action installs when `inputs.version` is unset. CI refuses to release a tag whose `VERSION` differs, so `@v1` never silently jumps a major.
 - `scripts/release.sh` needs `jq` on the runner.
 - Not in scope: changelog conventions, history mining, language-aware rules. Other tools do those well.
