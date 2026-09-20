@@ -1,6 +1,6 @@
 # tennyn
 
-*Welsh: tether.* A co-change gate for CI: **when these paths change, those must change too**, or the PR carries a waiver label. One static binary, one YAML file, runs on GitHub, Forgejo and Azure DevOps. Like [check-for-changed-files](https://github.com/brettcannon/check-for-changed-files), plus Azure DevOps and Forgejo, plus coverage, staleness and a cheat sheet from the same config.
+*Welsh: tether.* A co-change gate for CI: **when these paths change, those must change too**, or the PR carries a waiver label. One static binary, one YAML file, runs on GitHub, Forgejo and Azure DevOps. Like [check-for-changed-files](https://github.com/brettcannon/check-for-changed-files), plus Azure DevOps and Forgejo, plus coverage, staleness and a cheat sheet from one config.
 
 Typical rules: infra changed → runbook updated; auth code changed → threat model touched; handler changed → OpenAPI spec changed; schema changed → migration added.
 
