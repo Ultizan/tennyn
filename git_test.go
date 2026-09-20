@@ -116,6 +116,14 @@ func TestLabelsFromEnv(t *testing.T) {
 	}
 }
 
+func TestGitLabLabelsDoNotShadowExplicitEmptyTennynLabels(t *testing.T) {
+	t.Setenv("TENNYN_LABELS", "")
+	t.Setenv("CI_MERGE_REQUEST_LABELS", "a,b")
+	if got := labels(); len(got) != 0 {
+		t.Fatalf("explicit empty TENNYN_LABELS must win over GitLab labels, got %v", got)
+	}
+}
+
 func TestLabelsFromGitLab(t *testing.T) {
 	os.Unsetenv("TENNYN_LABELS")
 	t.Setenv("SYSTEM_PULLREQUEST_PULLREQUESTID", "")

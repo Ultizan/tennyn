@@ -67,7 +67,7 @@ tennyn is a Bonsai Collective tool. It grew out of the docs tripwire that guarde
 | `tennyn why [--base REF \| --stdin] PATH...` | If I touch these (or everything a REF diff touches), what must I also update, and who owns it? `--base` is mutually exclusive with `--stdin` and PATH... | never |
 | `tennyn coverage [--all]` | Which files does no rule watch? Which rules watch nothing? Which `require` targets no longer exist? Files matching the config's `ignore:` list are excluded and reported as `ignored`. | a require target matches no tracked file |
 | `tennyn stale` | Which rules' watched paths last moved at least a day after their required paths did? Honors a `verified: YYYY-MM-DD` header, optionally inside an HTML comment, within the first 2 KiB of a required file. A fresh, ever-touched rule also reports `fresh_by`: the `require` pattern (or `verified: <file>`) that kept it fresh. | any rule is stale |
-| `tennyn cheatsheet [--check FILE]` | The rules as a markdown table for your CONTRIBUTING or AGENTS file, or (`--check`) whether FILE already contains that exact table. | the table renders; with `--check`, FILE is missing it (exit 2 if FILE is unreadable) |
+| `tennyn cheatsheet [--check FILE]` | The rules as a markdown table for your CONTRIBUTING or AGENTS file, or (`--check`) whether FILE already contains that exact table. | never for the plain table; with `--check`, FILE does not contain the table (exit 2 if FILE is unreadable) |
 
 Every command takes `--json` (before the command) for machine use and `--config PATH` to point at a different rules file. Exit 2 means a config or git problem and the message says which.
 
