@@ -154,6 +154,19 @@ func TestNewestStopsEarly(t *testing.T) {
 	}
 }
 
+func TestNewestAtSignPath(t *testing.T) {
+	r := newTestRepo(t)
+	r.commit(t, 10, map[string]string{"@scope/a.ts": "1"})
+	r.commit(t, 20, map[string]string{"b": "1"})
+	got, err := r.newest([][]Pattern{{mustPat("@scope/")}, {mustPat("b")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, []int64{10, 20}) {
+		t.Fatalf("got %v", got)
+	}
+}
+
 func mustPat(s string) Pattern {
 	p, err := compilePattern(s)
 	if err != nil {

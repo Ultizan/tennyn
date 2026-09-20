@@ -131,10 +131,13 @@ func adoLabels() ([]string, error) {
 // the committer timestamp of the first commit touching any path matching any
 // pattern in the group (0 if none). It stops reading as soon as every group
 // is resolved, so on most repos it reads a few hundred commits, not the history.
+// The header line is prefixed with a NUL byte (a byte no tracked path can
+// contain) rather than '@', so paths like "@scope/pkg" are never mistaken
+// for a timestamp header.
 func (r repo) newest(groups [][]Pattern) ([]int64, error) {
 	out := make([]int64, len(groups))
 	pending := len(groups)
-	cmd := exec.Command("git", "-c", "core.quotePath=false", "log", "--format=@%ct", "--name-only")
+	cmd := exec.Command("git", "-c", "core.quotePath=false", "log", "--format=%x00%ct", "--name-only")
 	cmd.Dir = r.dir
 	pipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -150,7 +153,7 @@ func (r repo) newest(groups [][]Pattern) ([]int64, error) {
 		line := strings.TrimRight(sc.Text(), "\r")
 		switch {
 		case line == "":
-		case line[0] == '@':
+		case line[0] == 0:
 			ts, _ = strconv.ParseInt(line[1:], 10, 64)
 		default:
 			for i, g := range groups {
