@@ -29,7 +29,7 @@ jobs:
           version: v1.0.0
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: ${{ startsWith(github.ref, 'refs/tags/v') && contains(github.ref_name, '.') }}
     needs: test
     runs-on: ubuntu-latest
     permissions:
@@ -64,7 +64,6 @@ jobs:
           git push "https://x-access-token:${TOKEN}@github.com/${REPO}.git" "refs/tags/${GITHUB_REF_NAME}"
           sh scripts/release.sh github "${GITHUB_REF_NAME}"
       - name: Move floating major tag
-        if: contains(github.ref_name, '.')
         env:
           TOKEN: ${{ env.GH_RELEASE_TOKEN }}
         run: |
