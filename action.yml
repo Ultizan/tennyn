@@ -1,0 +1,30 @@
+name: tennyn
+description: Co-change gate — when these paths change, those must change too (or carry a waiver label).
+branding: { icon: link, color: green }
+inputs:
+  version:
+    description: Release tag to install. Empty means the ref this action was referenced at; a bare major (v1) means latest.
+    default: ""
+  config:
+    description: Path to the rules file.
+    default: tennyn.yml
+  download-url:
+    description: Releases base URL. Point at a Forgejo instance for air-gapped runners (then pin `version`).
+    default: https://github.com/Ultizan/tennyn/releases
+runs:
+  using: composite
+  steps:
+    - name: Install tennyn
+      shell: bash
+      env:
+        TENNYN_DOWNLOAD_URL: ${{ inputs.download-url }}
+      run: |
+        v="${{ inputs.version }}"
+        [ -n "$v" ] || v="${{ github.action_ref }}"
+        case "$v" in v[0-9]|v[0-9][0-9]|main|"") v=latest ;; esac
+        sh "${{ github.action_path }}/install.sh" "$v"
+    - name: Run co-change gate
+      shell: bash
+      env:
+        TENNYN_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+      run: tennyn --config "${{ inputs.config }}" check

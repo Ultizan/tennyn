@@ -1,0 +1,7 @@
+rules:
+  - name: docs
+    when: ["*.go", action.yml, azure-pipelines/, install.sh]
+    require: [README.md, AGENTS.md]
+    why: behaviour or wrapper changes must be reflected in the docs
+    owner: maintainer
+    bypass: docs-unaffected
