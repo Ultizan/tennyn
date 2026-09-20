@@ -17,10 +17,10 @@ var version = "dev"
 const usage = `usage: tennyn [--config tennyn.yml] [--json] <command>
 
   check [--base REF] [--stdin]   gate: fired rules must be satisfied or waived (exit 1 otherwise)
-  why [--stdin] PATH...          which rules a change to PATH... would fire
+  why [--base REF | --stdin] PATH...   which rules a change to PATH... (or a diff against REF) would fire
   coverage [--all]               files no rule watches, dead rules, broken require targets (exit 1 on broken)
   stale                          rules whose watched paths moved after their required paths (exit 1 if any)
-  cheatsheet                     markdown table of every rule
+  cheatsheet [--check FILE]      markdown table of every rule (or verify FILE already has it)
   version
 `
 
@@ -89,12 +89,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		}
 		return c.stale()
 	case "cheatsheet":
-		if len(sub) > 0 {
-			fmt.Fprint(stderr, usage)
-			return 2
-		}
-		fmt.Fprint(stdout, Cheatsheet(cfg))
-		return 0
+		return c.cheatsheet(sub)
 	default:
 		fmt.Fprint(stderr, usage)
 		return 2
@@ -187,10 +182,26 @@ func (c *cli) why(args []string) int {
 	fs := flag.NewFlagSet("why", flag.ContinueOnError)
 	fs.SetOutput(c.stderr)
 	useStdin := fs.Bool("stdin", false, "read paths from stdin")
+	base := fs.String("base", "", "compare against REF instead of naming paths")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	paths := c.pathsFrom(*useStdin, fs.Args())
+	positional := fs.Args()
+	if *base != "" && (*useStdin || len(positional) > 0) {
+		fmt.Fprintln(c.stderr, "tennyn: --base is mutually exclusive with --stdin and PATH...")
+		fmt.Fprint(c.stderr, usage)
+		return 2
+	}
+	var paths []string
+	if *base != "" {
+		var err error
+		if paths, err = c.repo.changed(*base); err != nil {
+			fmt.Fprintf(c.stderr, "tennyn: %v\n", err)
+			return 2
+		}
+	} else {
+		paths = c.pathsFrom(*useStdin, positional)
+	}
 	hits := fired(c.cfg, paths)
 	if c.json {
 		rules := make([]Rule, 0, len(hits))
@@ -238,7 +249,11 @@ func (c *cli) coverage(args []string) int {
 		c.emit(rep)
 		return exitBool(ok)
 	}
-	fmt.Fprintf(c.stdout, "tennyn: %d of %d tracked files are watched by a rule\n", rep.Covered, rep.Total)
+	if rep.Ignored > 0 {
+		fmt.Fprintf(c.stdout, "tennyn: %d of %d tracked files are watched by a rule (%d ignored)\n", rep.Covered, rep.Total, rep.Ignored)
+	} else {
+		fmt.Fprintf(c.stdout, "tennyn: %d of %d tracked files are watched by a rule\n", rep.Covered, rep.Total)
+	}
 	if len(rep.Uncovered) > 0 {
 		fmt.Fprintln(c.stdout, "uncovered by top-level directory:")
 		for _, dir := range sortedKeys(rep.Uncovered) {
@@ -271,7 +286,7 @@ func (c *cli) stale() int {
 		c.emit(rows)
 		return exitBool(!anyStale)
 	}
-	fmt.Fprintf(c.stdout, "%-20s %-12s %-12s %s\n", "rule", "when moved", "require moved", "status")
+	fmt.Fprintf(c.stdout, "%-20s %-12s %-12s %-20s %s\n", "rule", "when moved", "require moved", "status", "kept fresh by")
 	for _, s := range rows {
 		status := "fresh"
 		if s.Stale {
@@ -279,7 +294,7 @@ func (c *cli) stale() int {
 		} else if s.WhenTS == 0 {
 			status = "never touched"
 		}
-		fmt.Fprintf(c.stdout, "%-20s %-12s %-12s %s\n", s.Rule, day(s.WhenTS), day(s.RequireTS), status)
+		fmt.Fprintf(c.stdout, "%-20s %-12s %-12s %-20s %s\n", s.Rule, day(s.WhenTS), day(s.RequireTS), status, s.FreshBy)
 	}
 	return exitBool(!anyStale)
 }

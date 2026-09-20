@@ -77,6 +77,7 @@ type Target struct {
 type CoverageReport struct {
 	Total          int            `json:"total"`
 	Covered        int            `json:"covered"`
+	Ignored        int            `json:"ignored"`
 	Uncovered      map[string]int `json:"uncovered"` // top-level dir ("." for root files) -> count
 	UncoveredFiles []string       `json:"uncovered_files,omitempty"`
 	DeadRules      []string       `json:"dead_rules"`
@@ -84,10 +85,18 @@ type CoverageReport struct {
 }
 
 // Coverage reports tracked files no rule watches, rules that watch nothing,
-// and require targets that match no tracked file.
+// and require targets that match no tracked file. Files matching the config's
+// top-level `ignore` list are excluded from Total/Uncovered and counted in
+// Ignored instead; ignore has no effect on DeadRules or BrokenTargets, which
+// are computed against every tracked file regardless.
 func Coverage(cfg *Config, tracked []string, listAll bool) CoverageReport {
-	rep := CoverageReport{Total: len(tracked), Uncovered: map[string]int{}, DeadRules: []string{}, BrokenTargets: []Target{}}
+	rep := CoverageReport{Uncovered: map[string]int{}, DeadRules: []string{}, BrokenTargets: []Target{}}
 	for _, f := range tracked {
+		if matchAny(cfg.ignore, f) {
+			rep.Ignored++
+			continue
+		}
+		rep.Total++
 		covered := false
 		for i := range cfg.Rules {
 			if matchAny(cfg.Rules[i].when, f) {
@@ -142,17 +151,34 @@ type Staleness struct {
 	RequireTS int64  `json:"require_ts"`
 	Stale     bool   `json:"stale"`
 	LagDays   int    `json:"lag_days"`
+	// FreshBy names what kept a non-stale, ever-touched rule fresh: the raw
+	// `require` pattern whose newest commit is the newest among the rule's
+	// require patterns, or "verified: <file>" when a verified: header
+	// supplied the winning timestamp. Empty when the rule is stale or its
+	// `when` paths have never been touched.
+	FreshBy string `json:"fresh_by"`
 }
 
 // Stale compares, per rule, the newest commit touching `when` against the
-// newest commit touching `require` (or a newer `verified:` header in a
-// require file). A rule is stale when its watched paths moved at least a
-// full day (86400s) after its required paths last did; a same-day lag is
-// fresh.
+// newest commit touching any single `require` pattern (or a newer
+// `verified:` header in a require file). A rule is stale when its watched
+// paths moved at least a full day (86400s) after its required paths last
+// did; a same-day lag is fresh. Require patterns are timed individually
+// (rather than as one combined group) so a fresh rule can report which
+// pattern kept it fresh.
 func Stale(cfg *Config, r repo) ([]Staleness, error) {
+	// groups: for each rule, one `when` group followed by one group per
+	// `require` pattern, in the same order as Rule.Require.
 	groups := make([][]Pattern, 0, 2*len(cfg.Rules))
+	whenIdx := make([]int, len(cfg.Rules))
+	reqIdx := make([][]int, len(cfg.Rules))
 	for i := range cfg.Rules {
-		groups = append(groups, cfg.Rules[i].when, cfg.Rules[i].require)
+		whenIdx[i] = len(groups)
+		groups = append(groups, cfg.Rules[i].when)
+		for _, p := range cfg.Rules[i].require {
+			reqIdx[i] = append(reqIdx[i], len(groups))
+			groups = append(groups, []Pattern{p})
+		}
 	}
 	ts, err := r.newest(groups)
 	if err != nil {
@@ -165,19 +191,30 @@ func Stale(cfg *Config, r repo) ([]Staleness, error) {
 	out := make([]Staleness, len(cfg.Rules))
 	for i := range cfg.Rules {
 		rule := &cfg.Rules[i]
-		s := Staleness{Rule: rule.Name, WhenTS: ts[2*i], RequireTS: ts[2*i+1]}
+		s := Staleness{Rule: rule.Name, WhenTS: ts[whenIdx[i]]}
+		freshBy := ""
+		for j, idx := range reqIdx[i] {
+			if ts[idx] > s.RequireTS {
+				s.RequireTS = ts[idx]
+				freshBy = rule.Require[j]
+			}
+		}
 		var reqFiles []string
 		for _, f := range tracked {
 			if matchAny(rule.require, f) {
 				reqFiles = append(reqFiles, f)
 			}
 		}
-		if v := r.verifiedDate(reqFiles); v > s.RequireTS {
+		if v, vf := r.verifiedDateFile(reqFiles); v > s.RequireTS {
 			s.RequireTS = v
+			freshBy = "verified: " + vf
 		}
 		if s.WhenTS-s.RequireTS >= 86400 {
 			s.Stale = true
 			s.LagDays = int((s.WhenTS - s.RequireTS) / 86400)
+		}
+		if !s.Stale && s.WhenTS > 0 {
+			s.FreshBy = freshBy
 		}
 		out[i] = s
 	}

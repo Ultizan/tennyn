@@ -74,6 +74,17 @@ func TestParseConfigFlattensAnchors(t *testing.T) {
 	}
 }
 
+func TestParseConfigIgnore(t *testing.T) {
+	cfg := mustCfg(t, "ignore: [vendor/, '*.gen.go']\nrules:\n  - {name: x, when: [a], require: [b]}\n")
+	if !matchAny(cfg.ignore, "vendor/x.go") || !matchAny(cfg.ignore, "y.gen.go") {
+		t.Fatalf("ignore patterns not compiled: %+v", cfg.ignore)
+	}
+	cfg2 := mustCfg(t, "rules:\n  - {name: x, when: [a], require: [b]}\n")
+	if len(cfg2.ignore) != 0 {
+		t.Fatalf("absent ignore must compile to empty, got %v", cfg2.ignore)
+	}
+}
+
 func TestParseConfigRejects(t *testing.T) {
 	bad := map[string]string{
 		"no rules":        `rules: []`,
@@ -85,6 +96,7 @@ func TestParseConfigRejects(t *testing.T) {
 		"unknown key":     "rules:\n  - {name: x, when: [a], require: [b], owner2: y}\n",
 		"invalid pattern": "rules:\n  - {name: x, when: ['a[b'], require: [b]}\n",
 		"non-string item": "rules:\n  - {name: x, when: [{k: v}], require: [b]}\n",
+		"invalid ignore":  "ignore: ['a[b']\nrules:\n  - {name: x, when: [a], require: [b]}\n",
 	}
 	for label, src := range bad {
 		if _, err := ParseConfig([]byte(src)); err == nil {

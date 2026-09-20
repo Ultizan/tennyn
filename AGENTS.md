@@ -11,5 +11,6 @@ This repo is a Go CLI (`package main`, four source files). Run `go vet ./... && 
 ## Changing tennyn itself
 
 - Behaviour or wrapper changes require a README or AGENTS update in the same PR (this repo's own `tennyn.yml` enforces it).
+- After editing rules or their `when`/`require`/`why`/`owner`/`bypass` fields, run `tennyn cheatsheet --check README.md` — it fails (exit 1) if the cheat sheet table in README.md is out of date; run `tennyn cheatsheet` and paste the new table in.
 - Keep the two dependencies. Prefer deleting over adding.
 - Releases: bump `VERSION` on main, commit it, tag that same commit `vX.Y.Z`, push the tag. CI publishes binaries to Forgejo and GitHub, then moves the floating `vX` tag. CI refuses a tag whose `VERSION` differs, so the floating `vN` tag pins the action code and `VERSION` pins the binary — `@v1` never silently jumps a major. `scripts/release.sh` needs `jq` on the runner.

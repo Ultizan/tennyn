@@ -86,12 +86,17 @@ func TestChangedAndTracked(t *testing.T) {
 func TestDetectBase(t *testing.T) {
 	t.Setenv("GITHUB_BASE_REF", "")
 	t.Setenv("SYSTEM_PULLREQUEST_TARGETBRANCH", "")
+	t.Setenv("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "")
 	if b := detectBase(); b != "" {
 		t.Fatalf("want empty, got %q", b)
 	}
+	t.Setenv("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "main")
+	if b := detectBase(); b != "origin/main" {
+		t.Fatalf("gitlab: got %q", b)
+	}
 	t.Setenv("SYSTEM_PULLREQUEST_TARGETBRANCH", "refs/heads/main")
 	if b := detectBase(); b != "origin/main" {
-		t.Fatalf("ado: got %q", b)
+		t.Fatalf("ado wins over gitlab: got %q", b)
 	}
 	t.Setenv("GITHUB_BASE_REF", "develop")
 	if b := detectBase(); b != "origin/develop" {
@@ -111,6 +116,23 @@ func TestLabelsFromEnv(t *testing.T) {
 	}
 }
 
+func TestGitLabLabelsDoNotShadowExplicitEmptyTennynLabels(t *testing.T) {
+	t.Setenv("TENNYN_LABELS", "")
+	t.Setenv("CI_MERGE_REQUEST_LABELS", "a,b")
+	if got := labels(); len(got) != 0 {
+		t.Fatalf("explicit empty TENNYN_LABELS must win over GitLab labels, got %v", got)
+	}
+}
+
+func TestLabelsFromGitLab(t *testing.T) {
+	os.Unsetenv("TENNYN_LABELS")
+	t.Setenv("SYSTEM_PULLREQUEST_PULLREQUESTID", "")
+	t.Setenv("CI_MERGE_REQUEST_LABELS", "a, b")
+	if got := labels(); !reflect.DeepEqual(got, []string{"a", "b"}) {
+		t.Fatalf("got %v", got)
+	}
+}
+
 func TestStale(t *testing.T) {
 	r := newTestRepo(t)
 	cfg := mustCfg(t, "rules:\n  - name: docs\n    when: [scripts/]\n    require: [docs/]\n  - name: never\n    when: [nope/]\n    require: [docs/]\n")
@@ -122,6 +144,9 @@ func TestStale(t *testing.T) {
 	}
 	if s[0].Stale || s[0].WhenTS != 1_000_000 || s[0].RequireTS != 2_000_000 {
 		t.Fatalf("fresh case wrong: %+v", s[0])
+	}
+	if s[0].FreshBy != "docs/" {
+		t.Fatalf("fresh case must name the winning require pattern: %+v", s[0])
 	}
 	if s[1].WhenTS != 0 || s[1].Stale {
 		t.Fatalf("never-touched when must not be stale: %+v", s[1])
@@ -137,12 +162,35 @@ func TestStale(t *testing.T) {
 	if !s[0].Stale || s[0].LagDays != 11 {
 		t.Fatalf("stale case wrong: %+v", s[0])
 	}
+	if s[0].FreshBy != "" {
+		t.Fatalf("stale rule must not report fresh_by: %+v", s[0])
+	}
 	// A verified: header newer than the commit rescues the rule.
 	r.commit(t, 3_500_000, map[string]string{"docs/g.md": "<!-- verified: 2030-01-01 verifies-against: abc1234 -->\n"})
 	r.commit(t, 4_000_000, map[string]string{"scripts/a.sh": "4"})
 	s, _ = Stale(cfg, r)
 	if s[0].Stale {
 		t.Fatalf("verified header must win: %+v", s[0])
+	}
+	if s[0].FreshBy != "verified: docs/g.md" {
+		t.Fatalf("verified case must name the file: %+v", s[0])
+	}
+}
+
+// TestStaleFreshByPicksNewestRequirePattern uses two require patterns so
+// FreshBy must name whichever one's newest commit actually is the newest,
+// not just the first pattern listed.
+func TestStaleFreshByPicksNewestRequirePattern(t *testing.T) {
+	r := newTestRepo(t)
+	cfg := mustCfg(t, "rules:\n  - name: docs\n    when: [scripts/]\n    require: [README.md, docs/]\n")
+	r.commit(t, 1_000_000, map[string]string{"scripts/a.sh": "1", "README.md": "1"})
+	r.commit(t, 2_000_000, map[string]string{"docs/g.md": "1"})
+	s, err := Stale(cfg, r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s[0].FreshBy != "docs/" || s[0].RequireTS != 2_000_000 {
+		t.Fatalf("must pick the pattern with the newest commit: %+v", s[0])
 	}
 }
 
@@ -220,6 +268,7 @@ func TestADOLabels(t *testing.T) {
 	}))
 	defer srv.Close()
 	os.Unsetenv("TENNYN_LABELS")
+	t.Setenv("CI_MERGE_REQUEST_LABELS", "")
 	t.Setenv("SYSTEM_COLLECTIONURI", srv.URL+"/")
 	t.Setenv("SYSTEM_TEAMPROJECT", "My Project")
 	t.Setenv("BUILD_REPOSITORY_ID", "repo-guid")
