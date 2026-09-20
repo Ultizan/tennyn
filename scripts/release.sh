@@ -8,8 +8,8 @@ kind="${1:?forgejo|github}"; tag="${2:?tag}"
 auth="Authorization: token $TOKEN"
 [ "$kind" = github ] && auth="Authorization: Bearer $TOKEN"
 body="$(printf '{"tag_name":"%s","name":"%s","body":"See README for usage. Assets: binaries per OS/arch, SHA256SUMS, install.sh."}' "$tag" "$tag")"
-id="$(curl -fsS -X POST -H "$auth" -H 'Content-Type: application/json' -d "$body" "$API/repos/$REPO/releases" | sed -n 's/.*"id":[ ]*\([0-9]*\).*/\1/p' | head -n 1)"
-[ -n "$id" ] || { echo "release.sh: no release id returned" >&2; exit 1; }
+id="$(curl -fsS -X POST -H "$auth" -H 'Content-Type: application/json' -d "$body" "$API/repos/$REPO/releases" | jq -r .id)"
+[ -n "$id" ] && [ "$id" != null ] || { echo "release.sh: no release id returned" >&2; exit 1; }
 for f in dist/*; do
   name="$(basename "$f")"
   if [ "$kind" = github ]; then
