@@ -96,6 +96,7 @@ tennyn collects no data and sends nothing anywhere. The action downloads a relea
 - `stale` streams `git log --name-only` newest-first and stops as soon as every rule is resolved, so it is fast on large histories. A rule is stale only once its watched paths last moved at least a day (86400s) after its required paths did; a same-day lag is fresh.
 - The floating `vN` tag pins the action code; the root `VERSION` file pins the binary tag the action installs when `inputs.version` is unset. CI refuses to release a tag whose `VERSION` differs, so `@v1` never silently jumps a major.
 - Versioning: 1.x is early for a tool this young, but the `@v1` pin needs a major, and what 1.x promises is the mechanical contract, not feature maturity: the `tennyn.yml` schema, the exit codes (0 pass, 1 violation, 2 config or git error) and the `--json` shapes. Those change only with a major; everything else is free to move in minors.
+- `install.sh` verifies the download against `SHA256SUMS` in either sha256sum line form (text or binary mode) and refuses to install when neither `sha256sum` nor `shasum` is available.
 - `scripts/release.sh` needs `jq` on the runner.
 - Not in scope: changelog conventions, history mining, language-aware rules. Other tools do those well.
 

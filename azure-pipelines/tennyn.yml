@@ -24,10 +24,11 @@ steps:
     fetchDepth: 0
     persistCredentials: true
   - bash: |
-      set -eu
+      set -euo pipefail
       v="${{ parameters.version }}"
       if [ "$v" = latest ]; then u="${{ parameters.downloadUrl }}/latest/download"; else u="${{ parameters.downloadUrl }}/download/$v"; fi
-      bin="$(curl -fsSL "$u/install.sh" | TENNYN_DOWNLOAD_URL="${{ parameters.downloadUrl }}" sh -s -- "$v" | tail -n 1)"
+      curl -fsSL "$u/install.sh" -o "$AGENT_TEMPDIRECTORY/tennyn-install.sh"
+      bin="$(TENNYN_DOWNLOAD_URL="${{ parameters.downloadUrl }}" sh "$AGENT_TEMPDIRECTORY/tennyn-install.sh" "$v" | tail -n 1)"
       "$bin" --config "${{ parameters.config }}" check
     displayName: tennyn co-change gate
     condition: eq(variables['Build.Reason'], 'PullRequest')
