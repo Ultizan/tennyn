@@ -83,6 +83,10 @@ Patterns are anchored at the repo root. `dir/` means everything under `dir`; a p
 |---|---|---|---|---|---|
 | docs | `*.go`, `action.yml`, `azure-pipelines/`, `install.sh` | `README.md`, `AGENTS.md` | behaviour or wrapper changes must be reflected in the docs | maintainer | `docs-unaffected` |
 
+## Privacy
+
+tennyn collects no data and sends nothing anywhere. The action downloads a release binary from GitHub's release CDN (or the `download-url` you set), then everything runs inside your own runner against your own checkout. On Azure DevOps it reads pull-request labels through your own project's API with the build's own token. There is no telemetry, no crash reporting, and no network call the binary makes on its own.
+
 ## Design notes
 
 - Changed files come from `git diff --name-only <base>...HEAD`; CI checkouts need `fetch-depth: 0`.
