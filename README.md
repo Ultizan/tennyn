@@ -4,7 +4,7 @@
 
 Typical rules: infra changed → runbook updated; auth code changed → threat model touched; handler changed → OpenAPI spec changed; schema changed → migration added.
 
-tennyn is a [Bonsai Collective](https://github.com/Ultizan/bonsai) tool. It grew out of the docs tripwire that guarded the collective's repos ([Nemeton](https://github.com/Ultizan/nemeton), [Small Works](https://github.com/Ultizan/small-works), [Teire](https://github.com/Ultizan/teire), Sylfaen and the umbrella) as eight hand-copied shell scripts, and now gates all of them from one binary. Available on the GitHub Marketplace as `Ultizan/tennyn`.
+tennyn is a Bonsai Collective tool. It grew out of the docs tripwire that guarded the collective's repos (Nemeton, Small Works, Teire, Sylfaen and the umbrella, currently private) as eight hand-copied shell scripts, and now gates all of them from one binary. Available on the GitHub Marketplace as `Ultizan/tennyn`.
 
 ## Quick start
 

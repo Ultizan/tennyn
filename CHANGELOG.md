@@ -4,7 +4,7 @@
 
 **tennyn** (Welsh: *tether*) is a co-change gate for CI: **when these paths change, those paths must change too**, or the pull request carries a waiver label. Docs must move with the code, the threat model with auth, the OpenAPI spec with the handlers. One static binary, one YAML file, GitHub, Forgejo and Azure DevOps.
 
-This is the 1.0 of a gate that has been running in production since July 2026 across the [Bonsai Collective](https://github.com/Ultizan/bonsai) repos as eight hand-copied shell scripts, where it has caught doc drift on every large clean-up since. tennyn is that contract with the duplication removed, the waiver path made auditable, and analysis added on top. Like [check-for-changed-files](https://github.com/brettcannon/check-for-changed-files), plus Azure DevOps and Forgejo, plus coverage, staleness and a cheat sheet from one config.
+This is the 1.0 of a gate that has been running in production since July 2026 across the Bonsai Collective's repos (currently private) as eight hand-copied shell scripts, where it has caught doc drift on every large clean-up since. tennyn is that contract with the duplication removed, the waiver path made auditable, and analysis added on top. Like [check-for-changed-files](https://github.com/brettcannon/check-for-changed-files), plus Azure DevOps and Forgejo, plus coverage, staleness and a cheat sheet from one config.
 
 ### Use it
 
