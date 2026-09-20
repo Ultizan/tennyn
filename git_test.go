@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 // newTestRepo creates an empty git repo with a fixed identity in a temp dir.
@@ -114,7 +115,7 @@ func TestStale(t *testing.T) {
 	r := newTestRepo(t)
 	cfg := mustCfg(t, "rules:\n  - name: docs\n    when: [scripts/]\n    require: [docs/]\n  - name: never\n    when: [nope/]\n    require: [docs/]\n")
 	r.commit(t, 1_000_000, map[string]string{"scripts/a.sh": "1"})
-	r.commit(t, 2_000_000, map[string]string{"docs/g.md": "verified: 1970-01-01\n"})
+	r.commit(t, 2_000_000, map[string]string{"docs/g.md": "<!-- verified: 1970-01-01 verifies-against: abc1234 -->\n"})
 	s, err := Stale(cfg, r)
 	if err != nil {
 		t.Fatal(err)
@@ -131,7 +132,7 @@ func TestStale(t *testing.T) {
 		t.Fatalf("stale case wrong: %+v", s[0])
 	}
 	// A verified: header newer than the commit rescues the rule.
-	r.commit(t, 3_500_000, map[string]string{"docs/g.md": "verified: 2030-01-01\n"})
+	r.commit(t, 3_500_000, map[string]string{"docs/g.md": "<!-- verified: 2030-01-01 verifies-against: abc1234 -->\n"})
 	r.commit(t, 4_000_000, map[string]string{"scripts/a.sh": "3"})
 	s, _ = Stale(cfg, r)
 	if s[0].Stale {
@@ -139,7 +140,17 @@ func TestStale(t *testing.T) {
 	}
 }
 
-func TestNewestStopsEarly(t *testing.T) {
+func TestVerifiedDateBareLine(t *testing.T) {
+	r := newTestRepo(t)
+	r.commit(t, 1_000_000, map[string]string{"docs/bare.md": "verified: 2030-01-01\nsome other content\n"})
+	got := r.verifiedDate([]string{"docs/bare.md"})
+	want, _ := time.Parse("2006-01-02", "2030-01-01")
+	if got != want.Unix() {
+		t.Fatalf("bare verified line: got %d want %d", got, want.Unix())
+	}
+}
+
+func TestNewestResolvesPerGroup(t *testing.T) {
 	r := newTestRepo(t)
 	r.commit(t, 10, map[string]string{"a": "1"})
 	r.commit(t, 20, map[string]string{"b": "1"})
@@ -151,6 +162,25 @@ func TestNewestStopsEarly(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, []int64{10, 20, 0}) {
 		t.Fatalf("got %v", got)
+	}
+}
+
+// TestNewestEarlyExitCorrectness forces newest to scan almost the entire
+// history: the only commit touching "a" is the very first (oldest) one, and
+// only "a" is asked for, so pending stays 1 until the last line is read.
+func TestNewestEarlyExitCorrectness(t *testing.T) {
+	r := newTestRepo(t)
+	r.commit(t, 1, map[string]string{"a": "1"})
+	for i := 2; i <= 30; i++ {
+		r.commit(t, int64(i), map[string]string{"other": fmt.Sprintf("%d", i)})
+	}
+	pa, _ := compilePattern("a")
+	got, err := r.newest([][]Pattern{{pa}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, []int64{1}) {
+		t.Fatalf("got %v want [1]", got)
 	}
 }
 

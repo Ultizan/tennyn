@@ -3,7 +3,7 @@ description: Co-change gate — when these paths change, those must change too (
 branding: { icon: link, color: green }
 inputs:
   version:
-    description: Release tag to install. Empty means the ref this action was referenced at; a bare major (v1) means latest.
+    description: Release tag to install. Empty means the action's own VERSION file when present, else the ref this action was referenced at; a bare major (v1) means latest.
     default: ""
   config:
     description: Path to the rules file.
@@ -20,8 +20,14 @@ runs:
         TENNYN_DOWNLOAD_URL: ${{ inputs.download-url }}
       run: |
         v="${{ inputs.version }}"
-        [ -n "$v" ] || v="${{ github.action_ref }}"
-        case "$v" in v[0-9]|v[0-9][0-9]|main|"") v=latest ;; esac
+        if [ -z "$v" ]; then
+          if [ -f "${{ github.action_path }}/VERSION" ]; then
+            v="$(tr -d '[:space:]' < "${{ github.action_path }}/VERSION")"
+          else
+            v="${{ github.action_ref }}"
+            case "$v" in v[0-9]|v[0-9][0-9]|main|"") v=latest ;; esac
+          fi
+        fi
         sh "${{ github.action_path }}/install.sh" "$v"
     - name: Run co-change gate
       shell: bash

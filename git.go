@@ -27,7 +27,10 @@ func (r repo) git(args ...string) (string, error) {
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("git %s: %s", strings.Join(args, " "), strings.TrimSpace(stderr.String()))
+		if msg := strings.TrimSpace(stderr.String()); msg != "" {
+			return "", fmt.Errorf("git %s: %s", strings.Join(args, " "), msg)
+		}
+		return "", fmt.Errorf("git %s: %v", strings.Join(args, " "), err)
 	}
 	return strings.TrimSpace(string(out)), nil
 }
@@ -164,12 +167,16 @@ func (r repo) newest(groups [][]Pattern) ([]int64, error) {
 			}
 		}
 	}
+	scErr := sc.Err()
 	_ = cmd.Process.Kill() // early exit is the normal path; git's exit status is irrelevant here
 	_ = cmd.Wait()
+	if scErr != nil {
+		return nil, scErr
+	}
 	return out, nil
 }
 
-var verifiedRe = regexp.MustCompile(`(?m)^verified:\s*(\d{4}-\d{2}-\d{2})`)
+var verifiedRe = regexp.MustCompile(`(?m)^[^\w\n]{0,8}verified:\s*(\d{4}-\d{2}-\d{2})`)
 
 // verifiedDate returns the newest `verified: YYYY-MM-DD` header found in the
 // first 2 KiB of the given tracked files, as a unix timestamp (0 if none).

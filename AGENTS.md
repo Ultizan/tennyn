@@ -12,4 +12,4 @@ This repo is a Go CLI (`package main`, four source files). Run `go vet ./... && 
 
 - Behaviour or wrapper changes require a README or AGENTS update in the same PR (this repo's own `tennyn.yml` enforces it).
 - Keep the two dependencies. Prefer deleting over adding.
-- Releases: tag `vX.Y.Z` on main; CI publishes binaries to Forgejo and GitHub and moves the floating `vX` tag.
+- Releases: bump `VERSION` on main, commit it, tag that same commit `vX.Y.Z`, push the tag. CI publishes binaries to Forgejo and GitHub, then moves the floating `vX` tag. CI refuses a tag whose `VERSION` differs, so the floating `vN` tag pins the action code and `VERSION` pins the binary — `@v1` never silently jumps a major. `scripts/release.sh` needs `jq` on the runner.

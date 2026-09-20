@@ -61,7 +61,10 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if root, err := (repo{dir: "."}).root(); err == nil {
 		c.repo = repo{dir: root}
 		if !strings.Contains(*cfgPath, "/") && !strings.Contains(*cfgPath, "\\") {
-			os.Chdir(root)
+			if err := os.Chdir(root); err != nil {
+				fmt.Fprintf(stderr, "tennyn: cannot enter repo root %s: %v\n", root, err)
+				return 2
+			}
 		}
 	} else {
 		c.repo = repo{dir: "."}
@@ -80,8 +83,16 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	case "coverage":
 		return c.coverage(sub)
 	case "stale":
+		if len(sub) > 0 {
+			fmt.Fprint(stderr, usage)
+			return 2
+		}
 		return c.stale()
 	case "cheatsheet":
+		if len(sub) > 0 {
+			fmt.Fprint(stderr, usage)
+			return 2
+		}
 		fmt.Fprint(stdout, Cheatsheet(cfg))
 		return 0
 	default:
@@ -150,7 +161,7 @@ func (c *cli) check(args []string) int {
 	}
 	for _, h := range hits {
 		switch {
-		case h.Bypassed:
+		case !h.Satisfied && h.Bypassed:
 			fmt.Fprintf(c.stdout, "tennyn: rule %q waived by label %q\n", h.Name, h.Rule.Bypass)
 		case !h.Satisfied:
 			msg := fmt.Sprintf("rule %q fired by %d file(s) but none of its required paths changed", h.Name, len(h.Files))

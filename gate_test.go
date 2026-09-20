@@ -20,6 +20,9 @@ rules:
     when: [scripts/, Makefile]
     require: [docs/, README.md]
     bypass: docs-unaffected
+  - name: ops
+    when: [scripts/deploy/]
+    require: [RUNBOOK.md]
   - name: security
     when: [auth/]
     require: [SECURITY.md]
@@ -47,6 +50,7 @@ func TestEvaluate(t *testing.T) {
 		{"both labels waive both", []string{"scripts/a.sh", "auth/x.go"}, []string{"docs-unaffected", "security-reviewed"}, true, []string{"docs", "security"}},
 		{"rule without bypass ignores labels", []string{"daemon/t_handlers.go"}, []string{"docs-unaffected"}, false, []string{"api"}},
 		{"glob require satisfies", []string{"daemon/t_handlers.go", "api/openapi.yaml"}, nil, true, []string{"api"}},
+		{"multiple rules fire from one file", []string{"scripts/deploy/x.sh"}, nil, false, []string{"docs", "ops"}},
 	}
 	for _, c := range cases {
 		hits, ok := Evaluate(cfg, c.changed, c.labels)
@@ -101,10 +105,10 @@ func TestCoverage(t *testing.T) {
 	if len(rep.UncoveredFiles) != 5 {
 		t.Fatalf("uncovered files = %v", rep.UncoveredFiles)
 	}
-	if !reflect.DeepEqual(rep.DeadRules, []string{"security", "api"}) {
+	if !reflect.DeepEqual(rep.DeadRules, []string{"ops", "security", "api"}) {
 		t.Fatalf("dead = %v", rep.DeadRules)
 	}
-	want := []Target{{"security", "SECURITY.md"}, {"api", "api/openapi.yaml"}}
+	want := []Target{{"ops", "RUNBOOK.md"}, {"security", "SECURITY.md"}, {"api", "api/openapi.yaml"}}
 	if !reflect.DeepEqual(rep.BrokenTargets, want) {
 		t.Fatalf("broken = %v", rep.BrokenTargets)
 	}
