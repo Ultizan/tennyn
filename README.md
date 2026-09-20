@@ -81,7 +81,9 @@ Patterns are anchored at the repo root. `dir/` means everything under `dir`; a p
 
 | Rule | If you touch | Then update (any of) | Why | Owner | Waiver label |
 |---|---|---|---|---|---|
-| docs | `*.go`, `action.yml`, `azure-pipelines/`, `install.sh` | `README.md`, `AGENTS.md` | behaviour or wrapper changes must be reflected in the docs | maintainer | `docs-unaffected` |
+| docs | `*.go`, `action.yml`, `azure-pipelines/`, `install.sh`, `tennyn.yml` | `README.md`, `AGENTS.md` | behaviour, wrapper or rule changes must be reflected in the docs (rule changes refresh the cheat sheet) | maintainer | `docs-unaffected` |
+| changelog | `VERSION` | `CHANGELOG.md` | every release gets a changelog entry | maintainer |  |
+| readme-pins | `VERSION` | `README.md` | the README pins the release tag in examples; re-check them on every release | maintainer |  |
 
 ## Privacy
 

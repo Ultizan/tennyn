@@ -1,7 +1,19 @@
+# tennyn's own co-change rules, enforced by .forgejo/workflows/ci.yml.
+# `tennyn why <path>` before editing; `tennyn cheatsheet` renders the table in README.md.
 rules:
   - name: docs
-    when: ["*.go", action.yml, azure-pipelines/, install.sh]
+    when: ["*.go", action.yml, azure-pipelines/, install.sh, tennyn.yml]
     require: [README.md, AGENTS.md]
-    why: behaviour or wrapper changes must be reflected in the docs
+    why: behaviour, wrapper or rule changes must be reflected in the docs (rule changes refresh the cheat sheet)
     owner: maintainer
     bypass: docs-unaffected
+  - name: changelog
+    when: [VERSION]
+    require: [CHANGELOG.md]
+    why: every release gets a changelog entry
+    owner: maintainer
+  - name: readme-pins
+    when: [VERSION]
+    require: [README.md]
+    why: the README pins the release tag in examples; re-check them on every release
+    owner: maintainer
