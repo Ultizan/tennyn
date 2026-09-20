@@ -42,7 +42,7 @@ tennyn is a [Bonsai Collective](https://github.com/Ultizan/bonsai) tool. It grew
        - repository: tennyn
          type: github
          name: Ultizan/tennyn
-         ref: refs/tags/v1.0.0
+         ref: refs/tags/v1.0.2
          endpoint: github
    steps:
      - template: azure-pipelines/tennyn.yml@tennyn
