@@ -1,13 +1,18 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -120,4 +125,66 @@ func adoLabels() ([]string, error) {
 		out = append(out, v.Name)
 	}
 	return out, nil
+}
+
+// newest streams `git log --name-only` newest-first and returns, per group,
+// the committer timestamp of the first commit touching any path matching any
+// pattern in the group (0 if none). It stops reading as soon as every group
+// is resolved, so on most repos it reads a few hundred commits, not the history.
+func (r repo) newest(groups [][]Pattern) ([]int64, error) {
+	out := make([]int64, len(groups))
+	pending := len(groups)
+	cmd := exec.Command("git", "-c", "core.quotePath=false", "log", "--format=@%ct", "--name-only")
+	cmd.Dir = r.dir
+	pipe, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	sc := bufio.NewScanner(pipe)
+	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	var ts int64
+	for sc.Scan() && pending > 0 {
+		line := strings.TrimRight(sc.Text(), "\r")
+		switch {
+		case line == "":
+		case line[0] == '@':
+			ts, _ = strconv.ParseInt(line[1:], 10, 64)
+		default:
+			for i, g := range groups {
+				if out[i] == 0 && matchAny(g, line) {
+					out[i] = ts
+					pending--
+				}
+			}
+		}
+	}
+	_ = cmd.Process.Kill() // early exit is the normal path; git's exit status is irrelevant here
+	_ = cmd.Wait()
+	return out, nil
+}
+
+var verifiedRe = regexp.MustCompile(`(?m)^verified:\s*(\d{4}-\d{2}-\d{2})`)
+
+// verifiedDate returns the newest `verified: YYYY-MM-DD` header found in the
+// first 2 KiB of the given tracked files, as a unix timestamp (0 if none).
+func (r repo) verifiedDate(files []string) int64 {
+	var best int64
+	buf := make([]byte, 2048)
+	for _, f := range files {
+		fh, err := os.Open(filepath.Join(r.dir, filepath.FromSlash(f)))
+		if err != nil {
+			continue
+		}
+		n, _ := io.ReadFull(fh, buf)
+		fh.Close()
+		for _, m := range verifiedRe.FindAllSubmatch(buf[:n], -1) {
+			if t, err := time.Parse("2006-01-02", string(m[1])); err == nil && t.Unix() > best {
+				best = t.Unix()
+			}
+		}
+	}
+	return best
 }

@@ -87,3 +87,47 @@ func TestSplitLabels(t *testing.T) {
 		t.Fatalf("empty input should give no labels, got %v", got)
 	}
 }
+
+func TestCoverage(t *testing.T) {
+	cfg := mustCfg(t, gateYAML)
+	tracked := []string{"Makefile", "README.md", "scripts/a.sh", "src/main.go", "src/util.go", "docs/g.md", "LICENSE"}
+	rep := Coverage(cfg, tracked, true)
+	if rep.Total != 7 || rep.Covered != 2 {
+		t.Fatalf("total/covered = %d/%d", rep.Total, rep.Covered)
+	}
+	if rep.Uncovered["src"] != 2 || rep.Uncovered["."] != 2 || rep.Uncovered["docs"] != 1 {
+		t.Fatalf("uncovered = %v", rep.Uncovered)
+	}
+	if len(rep.UncoveredFiles) != 5 {
+		t.Fatalf("uncovered files = %v", rep.UncoveredFiles)
+	}
+	if !reflect.DeepEqual(rep.DeadRules, []string{"security", "api"}) {
+		t.Fatalf("dead = %v", rep.DeadRules)
+	}
+	want := []Target{{"security", "SECURITY.md"}, {"api", "api/openapi.yaml"}}
+	if !reflect.DeepEqual(rep.BrokenTargets, want) {
+		t.Fatalf("broken = %v", rep.BrokenTargets)
+	}
+	if rep2 := Coverage(cfg, tracked, false); rep2.UncoveredFiles != nil {
+		t.Fatal("listAll=false must not list files")
+	}
+}
+
+func TestCheatsheet(t *testing.T) {
+	cfg := mustCfg(t, `
+rules:
+  - name: docs
+    when: [scripts/, Makefile]
+    require: [docs/, README.md]
+    why: scripts are contract-bearing
+    owner: operator
+    bypass: docs-unaffected
+`)
+	got := Cheatsheet(cfg)
+	want := "| Rule | If you touch | Then update (any of) | Why | Owner | Waiver label |\n" +
+		"|---|---|---|---|---|---|\n" +
+		"| docs | `scripts/`, `Makefile` | `docs/`, `README.md` | scripts are contract-bearing | operator | `docs-unaffected` |\n"
+	if got != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
+	}
+}

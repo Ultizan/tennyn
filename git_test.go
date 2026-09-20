@@ -110,6 +110,58 @@ func TestLabelsFromEnv(t *testing.T) {
 	}
 }
 
+func TestStale(t *testing.T) {
+	r := newTestRepo(t)
+	cfg := mustCfg(t, "rules:\n  - name: docs\n    when: [scripts/]\n    require: [docs/]\n  - name: never\n    when: [nope/]\n    require: [docs/]\n")
+	r.commit(t, 1_000_000, map[string]string{"scripts/a.sh": "1"})
+	r.commit(t, 2_000_000, map[string]string{"docs/g.md": "verified: 1970-01-01\n"})
+	s, err := Stale(cfg, r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s[0].Stale || s[0].WhenTS != 1_000_000 || s[0].RequireTS != 2_000_000 {
+		t.Fatalf("fresh case wrong: %+v", s[0])
+	}
+	if s[1].WhenTS != 0 || s[1].Stale {
+		t.Fatalf("never-touched when must not be stale: %+v", s[1])
+	}
+	r.commit(t, 3_000_000, map[string]string{"scripts/a.sh": "2"})
+	s, _ = Stale(cfg, r)
+	if !s[0].Stale || s[0].LagDays != 11 {
+		t.Fatalf("stale case wrong: %+v", s[0])
+	}
+	// A verified: header newer than the commit rescues the rule.
+	r.commit(t, 3_500_000, map[string]string{"docs/g.md": "verified: 2030-01-01\n"})
+	r.commit(t, 4_000_000, map[string]string{"scripts/a.sh": "3"})
+	s, _ = Stale(cfg, r)
+	if s[0].Stale {
+		t.Fatalf("verified header must win: %+v", s[0])
+	}
+}
+
+func TestNewestStopsEarly(t *testing.T) {
+	r := newTestRepo(t)
+	r.commit(t, 10, map[string]string{"a": "1"})
+	r.commit(t, 20, map[string]string{"b": "1"})
+	pa, _ := compilePattern("a")
+	pb, _ := compilePattern("b")
+	got, err := r.newest([][]Pattern{{pa}, {pb}, {mustPat("zzz")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, []int64{10, 20, 0}) {
+		t.Fatalf("got %v", got)
+	}
+}
+
+func mustPat(s string) Pattern {
+	p, err := compilePattern(s)
+	if err != nil {
+		panic(err)
+	}
+	return p
+}
+
 func TestADOLabels(t *testing.T) {
 	var gotAuth, gotPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
