@@ -25,9 +25,11 @@ mkdir -p "$dir"
 tmp="$(mktemp -d)"
 curl -fsSL "$url/$asset" -o "$tmp/$asset"
 curl -fsSL "$url/SHA256SUMS" -o "$tmp/SHA256SUMS"
-expected="$(grep " $asset\$" "$tmp/SHA256SUMS" | cut -d' ' -f1)"
+# Accept both sha256sum line forms: "<hash>  name" (text mode) and "<hash> *name" (binary mode).
+expected="$(grep -E "^[0-9a-f]{64} [ *]$asset\$" "$tmp/SHA256SUMS" | cut -d' ' -f1)"
 if command -v sha256sum >/dev/null 2>&1; then actual="$(sha256sum "$tmp/$asset" | cut -d' ' -f1)"
-else actual="$(shasum -a 256 "$tmp/$asset" | cut -d' ' -f1)"; fi
+elif command -v shasum >/dev/null 2>&1; then actual="$(shasum -a 256 "$tmp/$asset" | cut -d' ' -f1)"
+else echo "tennyn: need sha256sum or shasum on PATH to verify the download" >&2; exit 2; fi
 [ -n "$expected" ] && [ "$expected" = "$actual" ] || { echo "tennyn: checksum mismatch for $asset" >&2; exit 2; }
 bin="$dir/tennyn"; [ "$os" = windows ] && bin="$bin.exe"
 mv "$tmp/$asset" "$bin"; chmod +x "$bin"; rm -rf "$tmp"
