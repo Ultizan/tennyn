@@ -22,6 +22,8 @@ jobs:
         env:
           TENNYN_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
         run: go run . check
+      - name: Cheat sheet is up to date
+        run: go run . cheatsheet --check README.md
       - name: Self-test the action (published release, end to end)
         if: github.event_name == 'pull_request'
         uses: ./

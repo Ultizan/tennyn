@@ -88,8 +88,10 @@ type Rule struct {
 
 type Config struct {
 	// Anchors is scratch space for YAML anchor definitions; its content is ignored.
-	Anchors any    `yaml:"anchors,omitempty" json:"-"`
-	Rules   []Rule `yaml:"rules" json:"rules"`
+	Anchors any         `yaml:"anchors,omitempty" json:"-"`
+	Ignore  patternList `yaml:"ignore,omitempty" json:"ignore,omitempty"`
+	Rules   []Rule      `yaml:"rules" json:"rules"`
+	ignore  []Pattern
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -113,6 +115,10 @@ func ParseConfig(b []byte) (*Config, error) {
 	}
 	if len(cfg.Rules) == 0 {
 		return nil, errors.New("no rules defined")
+	}
+	var err error
+	if cfg.ignore, err = compileAll(cfg.Ignore); err != nil {
+		return nil, fmt.Errorf("ignore: %w", err)
 	}
 	seen := map[string]bool{}
 	for i := range cfg.Rules {

@@ -64,7 +64,8 @@ func splitLines(s string) []string {
 	return out
 }
 
-// detectBase reads the PR target branch from GitHub/Forgejo or Azure DevOps.
+// detectBase reads the PR/MR target branch from GitHub/Forgejo, Azure DevOps
+// or GitLab.
 func detectBase() string {
 	if v := os.Getenv("GITHUB_BASE_REF"); v != "" {
 		return "origin/" + v
@@ -72,11 +73,15 @@ func detectBase() string {
 	if v := os.Getenv("SYSTEM_PULLREQUEST_TARGETBRANCH"); v != "" {
 		return "origin/" + strings.TrimPrefix(v, "refs/heads/")
 	}
+	if v := os.Getenv("CI_MERGE_REQUEST_TARGET_BRANCH_NAME"); v != "" {
+		return "origin/" + v
+	}
 	return ""
 }
 
-// labels returns PR labels: TENNYN_LABELS if set (even empty), else fetched
-// from Azure DevOps when its PR variables are present, else none.
+// labels returns PR/MR labels: TENNYN_LABELS if set (even empty), else
+// fetched from Azure DevOps when its PR variables are present, else
+// CI_MERGE_REQUEST_LABELS on GitLab when set, else none.
 func labels() []string {
 	if v, ok := os.LookupEnv("TENNYN_LABELS"); ok {
 		return splitLabels(v)
@@ -88,6 +93,9 @@ func labels() []string {
 			return nil
 		}
 		return ls
+	}
+	if v, ok := os.LookupEnv("CI_MERGE_REQUEST_LABELS"); ok {
+		return splitLabels(v)
 	}
 	return nil
 }
@@ -181,7 +189,14 @@ var verifiedRe = regexp.MustCompile(`(?m)^[^\w\n]{0,8}verified:\s*(\d{4}-\d{2}-\
 // verifiedDate returns the newest `verified: YYYY-MM-DD` header found in the
 // first 2 KiB of the given tracked files, as a unix timestamp (0 if none).
 func (r repo) verifiedDate(files []string) int64 {
+	ts, _ := r.verifiedDateFile(files)
+	return ts
+}
+
+// verifiedDateFile is verifiedDate plus the file the winning header came from.
+func (r repo) verifiedDateFile(files []string) (int64, string) {
 	var best int64
+	var bestFile string
 	buf := make([]byte, 2048)
 	for _, f := range files {
 		fh, err := os.Open(filepath.Join(r.dir, filepath.FromSlash(f)))
@@ -193,8 +208,9 @@ func (r repo) verifiedDate(files []string) int64 {
 		for _, m := range verifiedRe.FindAllSubmatch(buf[:n], -1) {
 			if t, err := time.Parse("2006-01-02", string(m[1])); err == nil && t.Unix() > best {
 				best = t.Unix()
+				bestFile = f
 			}
 		}
 	}
-	return best
+	return best, bestFile
 }

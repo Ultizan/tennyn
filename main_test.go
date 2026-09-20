@@ -21,8 +21,8 @@ func cliRepo(t *testing.T) repo {
 	t.Helper()
 	r := newTestRepo(t)
 	r.commit(t, 1000, map[string]string{
-		"tennyn.yml": gateYAML,
-		"README.md":  "hello",
+		"tennyn.yml":   gateYAML,
+		"README.md":    "hello",
 		"scripts/a.sh": "x",
 	})
 	wd, _ := os.Getwd()
@@ -33,6 +33,8 @@ func cliRepo(t *testing.T) repo {
 	t.Setenv("TENNYN_LABELS", "")
 	t.Setenv("GITHUB_BASE_REF", "")
 	t.Setenv("SYSTEM_PULLREQUEST_TARGETBRANCH", "")
+	t.Setenv("CI_MERGE_REQUEST_TARGET_BRANCH_NAME", "")
+	t.Setenv("CI_MERGE_REQUEST_LABELS", "")
 	t.Setenv("GITHUB_ACTIONS", "")
 	t.Setenv("TF_BUILD", "")
 	return r
@@ -124,6 +126,25 @@ func TestWhy(t *testing.T) {
 	}
 }
 
+func TestWhyBase(t *testing.T) {
+	r := cliRepo(t)
+	r.git("branch", "base")
+	r.commit(t, 2000, map[string]string{"scripts/b.sh": "y"})
+	code, out, _ := runCLI(t, "", "why", "--base", "base")
+	if code != 0 || !strings.Contains(out, `rule "docs"`) {
+		t.Fatalf("why --base must report the fired rule: code %d out %q", code, out)
+	}
+
+	code, _, errb := runCLI(t, "", "why", "--base", "base", "--stdin")
+	if code != 2 || errb == "" {
+		t.Fatalf("--base with --stdin must exit 2: code %d errb %q", code, errb)
+	}
+	code, _, errb = runCLI(t, "", "why", "--base", "base", "extra/path")
+	if code != 2 || errb == "" {
+		t.Fatalf("--base with positional paths must exit 2: code %d errb %q", code, errb)
+	}
+}
+
 func TestCoverageAndStaleCommands(t *testing.T) {
 	r := cliRepo(t)
 	code, out, _ := runCLI(t, "", "coverage")
@@ -141,6 +162,37 @@ func TestCoverageAndStaleCommands(t *testing.T) {
 	}
 }
 
+func TestIgnoreCoverageOnly(t *testing.T) {
+	r := newTestRepo(t)
+	r.commit(t, 1000, map[string]string{
+		"tennyn.yml":   gateYAML + "ignore: [scripts/]\n",
+		"README.md":    "hello",
+		"scripts/a.sh": "x",
+	})
+	wd, _ := os.Getwd()
+	if err := os.Chdir(r.dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chdir(wd) })
+	t.Setenv("TENNYN_LABELS", "")
+	t.Setenv("GITHUB_BASE_REF", "")
+	t.Setenv("SYSTEM_PULLREQUEST_TARGETBRANCH", "")
+
+	// check must still fire on an ignored path: ignore is coverage-only.
+	code, out, _ := runCLI(t, "scripts/a.sh\n", "check", "--stdin")
+	if code != 1 || !strings.Contains(out, `rule "docs"`) {
+		t.Fatalf("ignore must not affect check: code %d out %q", code, out)
+	}
+
+	code, out, _ = runCLI(t, "", "coverage")
+	if code != 1 {
+		t.Fatalf("broken targets still exit 1: %d", code)
+	}
+	if !strings.Contains(out, "ignored") {
+		t.Fatalf("text output must mention ignored count: %q", out)
+	}
+}
+
 func TestStaleAndCheatsheetRejectArgs(t *testing.T) {
 	cliRepo(t)
 	code, out, _ := runCLI(t, "", "stale", "--json")
@@ -150,6 +202,49 @@ func TestStaleAndCheatsheetRejectArgs(t *testing.T) {
 	code, out, _ = runCLI(t, "", "cheatsheet", "extra")
 	if code != 2 || out != "" {
 		t.Fatalf("cheatsheet with trailing arg must exit 2 with no stdout: code %d out %q", code, out)
+	}
+}
+
+func TestCheatsheetCheck(t *testing.T) {
+	r := cliRepo(t)
+	table := Cheatsheet(mustCfg(t, gateYAML))
+	upToDate := filepath.Join(r.dir, "UPTODATE.md")
+	os.WriteFile(upToDate, []byte("# Title\n\n"+table+"\nmore text\n"), 0o644)
+	code, out, _ := runCLI(t, "", "cheatsheet", "--check", upToDate)
+	if code != 0 || out != "" {
+		t.Fatalf("up-to-date file must pass silently: code %d out %q", code, out)
+	}
+
+	// CRLF and trailing whitespace must be normalized away.
+	crlf := strings.ReplaceAll(table, "\n", "\r\n")
+	crlfFile := filepath.Join(r.dir, "CRLF.md")
+	os.WriteFile(crlfFile, []byte("intro\r\n"+crlf+"trailer\r\n"), 0o644)
+	code, _, _ = runCLI(t, "", "cheatsheet", "--check", crlfFile)
+	if code != 0 {
+		t.Fatalf("CRLF file must still be considered up to date: code %d", code)
+	}
+
+	stale := filepath.Join(r.dir, "STALE.md")
+	staleTable := strings.Replace(table, "docs-unaffected", "something-else", 1)
+	os.WriteFile(stale, []byte(staleTable), 0o644)
+	code, out, _ = runCLI(t, "", "cheatsheet", "--check", stale)
+	if code != 1 || !strings.Contains(out, "cheat sheet in "+stale+" is out of date") || !strings.Contains(out, "tennyn cheatsheet") {
+		t.Fatalf("stale table must fail with a hint: code %d out %q", code, out)
+	}
+
+	missing := filepath.Join(r.dir, "MISSING.md")
+	code, _, errb := runCLI(t, "", "cheatsheet", "--check", missing)
+	if code != 2 || errb == "" {
+		t.Fatalf("missing file must exit 2 with a message: code %d errb %q", code, errb)
+	}
+
+	code, out, _ = runCLI(t, "", "--json", "cheatsheet", "--check", upToDate)
+	var got struct {
+		OK   bool   `json:"ok"`
+		File string `json:"file"`
+	}
+	if err := json.Unmarshal([]byte(out), &got); err != nil || !got.OK || got.File != upToDate {
+		t.Fatalf("json: %v %q", err, out)
 	}
 }
 

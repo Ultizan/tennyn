@@ -117,6 +117,42 @@ func TestCoverage(t *testing.T) {
 	}
 }
 
+func TestCoverageIgnore(t *testing.T) {
+	cfg := mustCfg(t, gateYAML)
+	tracked := []string{"Makefile", "README.md", "scripts/a.sh", "src/main.go", "src/util.go", "docs/g.md", "LICENSE"}
+	rep := Coverage(cfg, tracked, true)
+	if rep.Ignored != 0 {
+		t.Fatalf("no ignore: list must have zero ignored, got %d", rep.Ignored)
+	}
+	cfg2 := mustCfg(t, gateYAML+"ignore: [src/, LICENSE]\n")
+	rep2 := Coverage(cfg2, tracked, true)
+	if rep2.Ignored != 3 {
+		t.Fatalf("ignored = %d, want 3", rep2.Ignored)
+	}
+	if rep2.Total != 4 {
+		t.Fatalf("total must exclude ignored files, got %d", rep2.Total)
+	}
+	if rep2.Covered != 2 {
+		t.Fatalf("covered = %d, want 2", rep2.Covered)
+	}
+	for _, f := range rep2.UncoveredFiles {
+		if f == "src/main.go" || f == "src/util.go" || f == "LICENSE" {
+			t.Fatalf("ignored file %q must not appear in uncovered_files: %v", f, rep2.UncoveredFiles)
+		}
+	}
+	if rep2.Uncovered["src"] != 0 {
+		t.Fatalf("ignored dir must not appear in uncovered map: %v", rep2.Uncovered)
+	}
+	// ignore must not hide broken targets or dead rules.
+	if !reflect.DeepEqual(rep2.DeadRules, []string{"ops", "security", "api"}) {
+		t.Fatalf("dead rules must be unaffected by ignore: %v", rep2.DeadRules)
+	}
+	want := []Target{{"ops", "RUNBOOK.md"}, {"security", "SECURITY.md"}, {"api", "api/openapi.yaml"}}
+	if !reflect.DeepEqual(rep2.BrokenTargets, want) {
+		t.Fatalf("broken targets must be unaffected by ignore: %v", rep2.BrokenTargets)
+	}
+}
+
 func TestCheatsheet(t *testing.T) {
 	cfg := mustCfg(t, `
 rules:

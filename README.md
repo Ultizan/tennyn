@@ -49,17 +49,25 @@ tennyn is a Bonsai Collective tool. It grew out of the docs tripwire that guarde
    ```
    Labels are read through the build's own `System.AccessToken`; grant the build service *Read* on the repo (it usually already has it).
 
+   **GitLab CI** (`.gitlab-ci.yml`):
+   ```yaml
+   tennyn:
+     rules: [{ if: '$CI_PIPELINE_SOURCE == "merge_request_event"' }]
+     script: [ "curl -fsSL https://github.com/Ultizan/tennyn/releases/latest/download/install.sh | sh", "tennyn check" ]
+   ```
+   Base and labels are read from `CI_MERGE_REQUEST_TARGET_BRANCH_NAME` and `CI_MERGE_REQUEST_LABELS`, which GitLab sets on merge-request pipelines.
+
 3. Locally: `curl -fsSL https://github.com/Ultizan/tennyn/releases/latest/download/install.sh | sh` or `go install github.com/Ultizan/tennyn@latest` (this reports `tennyn dev`; `version` is only stamped into release binaries).
 
 ## Commands
 
 | Command | What it answers | Exit 1 when |
 |---|---|---|
-| `tennyn check [--base REF] [--stdin]` | Does this change satisfy every rule it fires? Base is auto-detected on GitHub, Forgejo and ADO PR builds. | a fired rule is neither satisfied nor waived |
-| `tennyn why PATH...` | If I touch these, what must I also update, and who owns it? | never |
-| `tennyn coverage [--all]` | Which files does no rule watch? Which rules watch nothing? Which `require` targets no longer exist? | a require target matches no tracked file |
-| `tennyn stale` | Which rules' watched paths last moved at least a day after their required paths did? Honors a `verified: YYYY-MM-DD` header, optionally inside an HTML comment, within the first 2 KiB of a required file. | any rule is stale |
-| `tennyn cheatsheet` | The rules as a markdown table for your CONTRIBUTING or AGENTS file. | never |
+| `tennyn check [--base REF] [--stdin]` | Does this change satisfy every rule it fires? Base is auto-detected on GitHub, Forgejo, ADO and GitLab PR/MR builds. | a fired rule is neither satisfied nor waived |
+| `tennyn why [--base REF \| --stdin] PATH...` | If I touch these (or everything a REF diff touches), what must I also update, and who owns it? `--base` is mutually exclusive with `--stdin` and PATH... | never |
+| `tennyn coverage [--all]` | Which files does no rule watch? Which rules watch nothing? Which `require` targets no longer exist? Files matching the config's `ignore:` list are excluded and reported as `ignored`. | a require target matches no tracked file |
+| `tennyn stale` | Which rules' watched paths last moved at least a day after their required paths did? Honors a `verified: YYYY-MM-DD` header, optionally inside an HTML comment, within the first 2 KiB of a required file. A fresh, ever-touched rule also reports `fresh_by`: the `require` pattern (or `verified: <file>`) that kept it fresh. | any rule is stale |
+| `tennyn cheatsheet [--check FILE]` | The rules as a markdown table for your CONTRIBUTING or AGENTS file, or (`--check`) whether FILE already contains that exact table. | the table renders; with `--check`, FILE is missing it (exit 2 if FILE is unreadable) |
 
 Every command takes `--json` (before the command) for machine use and `--config PATH` to point at a different rules file. Exit 2 means a config or git problem and the message says which.
 
@@ -73,6 +81,7 @@ Every command takes `--json` (before the command) for machine use and `--config 
 | `rules[].why` | no | one line shown on failure and in the cheat sheet |
 | `rules[].owner` | no | shown in `why` and the cheat sheet |
 | `rules[].bypass` | no | PR label that waives this rule; absent means no waiver |
+| `ignore` | no | patterns excluded from `coverage`'s totals and `uncovered`/`uncovered_files` (reported as `ignored`); does not affect `check`, `why`, `stale`, dead rules or broken targets |
 | `anchors` | no | scratch space for YAML anchors; ignored |
 
 Patterns are anchored at the repo root. `dir/` means everything under `dir`; a plain path is exact; globs use `*`, `?`, `[..]`, `{a,b}` and `**`. Lists may nest and are flattened, so `require: [RUNBOOK-*.md, *shared-docs]` works with a YAML anchor.

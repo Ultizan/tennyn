@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.1.0 (unreleased)
+
+- `ignore:` — a top-level list of patterns excluded from `coverage`'s totals and `uncovered`/`uncovered_files` (reported as a new `ignored` count); has no effect on `check`, `why`, `stale`, dead rules or broken targets.
+- `tennyn cheatsheet --check FILE` — verifies FILE already contains the current cheat sheet table (CRLF and trailing whitespace normalized before comparing); exit 0 present, 1 out of date, 2 unreadable. This repo's own CI now runs it against README.md.
+- `tennyn why --base REF` — pulls the path list from `repo.changed(REF)`, the same helper `check` uses, instead of requiring `--stdin` or positional paths; mutually exclusive with both.
+- `tennyn stale` reports `fresh_by`: the `require` pattern whose newest commit kept a fresh rule fresh, or `verified: <file>` when a verified: header supplied the winning timestamp.
+- GitLab CI: `detectBase()` reads `CI_MERGE_REQUEST_TARGET_BRANCH_NAME`; `labels()` reads `CI_MERGE_REQUEST_LABELS` when `TENNYN_LABELS` is unset.
+
 ## v1.0.2 — tennyn 1.0: the docs tripwire, graduated (2026-09-20)
 
 **tennyn** (Welsh: *tether*) is a co-change gate for CI: **when these paths change, those paths must change too**, or the pull request carries a waiver label. Docs must move with the code, the threat model with auth, the OpenAPI spec with the handlers. One static binary, one YAML file, GitHub, Forgejo and Azure DevOps.
