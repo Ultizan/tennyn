@@ -4,6 +4,8 @@
 
 Typical rules: infra changed → runbook updated; auth code changed → threat model touched; handler changed → OpenAPI spec changed; schema changed → migration added.
 
+tennyn is a [Bonsai Collective](https://github.com/Ultizan/bonsai) tool. It grew out of the docs tripwire that guarded the collective's repos ([Nemeton](https://github.com/Ultizan/nemeton), [Small Works](https://github.com/Ultizan/small-works), [Teire](https://github.com/Ultizan/teire), Sylfaen and the umbrella) as eight hand-copied shell scripts, and now gates all of them from one binary. Available on the GitHub Marketplace as `Ultizan/tennyn`.
+
 ## Quick start
 
 1. Add `tennyn.yml` at the repo root:
@@ -27,7 +29,7 @@ Typical rules: infra changed → runbook updated; auth code changed → threat m
      tennyn:
        runs-on: ubuntu-latest
        steps:
-         - uses: actions/checkout@v7
+         - uses: actions/checkout@v4
            with: { fetch-depth: 0 }
          - uses: Ultizan/tennyn@v1
    ```
@@ -87,6 +89,7 @@ Patterns are anchored at the repo root. `dir/` means everything under `dir`; a p
 - Waivers are per rule: a docs waiver never waives a security rule.
 - `stale` streams `git log --name-only` newest-first and stops as soon as every rule is resolved, so it is fast on large histories. A rule is stale only once its watched paths last moved at least a day (86400s) after its required paths did; a same-day lag is fresh.
 - The floating `vN` tag pins the action code; the root `VERSION` file pins the binary tag the action installs when `inputs.version` is unset. CI refuses to release a tag whose `VERSION` differs, so `@v1` never silently jumps a major.
+- Versioning: 1.x is early for a tool this young, but the `@v1` pin needs a major, and what 1.x promises is the mechanical contract, not feature maturity: the `tennyn.yml` schema, the exit codes (0 pass, 1 violation, 2 config or git error) and the `--json` shapes. Those change only with a major; everything else is free to move in minors.
 - `scripts/release.sh` needs `jq` on the runner.
 - Not in scope: changelog conventions, history mining, language-aware rules. Other tools do those well.
 
