@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.1.1 (2026-09-21)
+
+- Action display name is now "tennyn co-change gate": the GitHub Marketplace requires a name that matches no existing action, user or organization, and `tennyn` alone is reserved. `uses: Ultizan/tennyn@v1`, the binary and the config file are unchanged.
+
 ## v1.1.0 (unreleased)
 
 - `ignore:` — a top-level list of patterns excluded from `coverage`'s totals and `uncovered`/`uncovered_files` (reported as a new `ignored` count); has no effect on `check`, `why`, `stale`, dead rules or broken targets.

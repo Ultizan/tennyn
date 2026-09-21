@@ -1,4 +1,4 @@
-name: tennyn
+name: tennyn co-change gate
 description: Co-change gate — when these paths change, those must change too (or carry a waiver label).
 branding: { icon: link, color: green }
 inputs:
