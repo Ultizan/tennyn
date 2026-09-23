@@ -107,7 +107,77 @@ func LoadConfig(path string) (*Config, error) {
 	return cfg, nil
 }
 
+func yamlNodeTarget(n *yaml.Node) *yaml.Node {
+	seen := map[*yaml.Node]bool{}
+	for n != nil && n.Kind == yaml.AliasNode {
+		if seen[n] {
+			return nil
+		}
+		seen[n] = true
+		n = n.Alias
+	}
+	return n
+}
+
+// validateKernelNodes inspects raw rule nodes before yaml.v3 decodes pointer
+// fields, since decoding a whole-block alias can hide the AliasNode from the
+// DecisionContract UnmarshalYAML hook.
+func validateKernelNodes(b []byte) error {
+	dec := yaml.NewDecoder(bytes.NewReader(b))
+	var doc yaml.Node
+	if err := dec.Decode(&doc); err != nil {
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		return err
+	}
+	if len(doc.Content) == 0 {
+		return nil
+	}
+	root := yamlNodeTarget(doc.Content[0])
+	if root == nil || root.Kind != yaml.MappingNode {
+		return nil
+	}
+	var rules *yaml.Node
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		if root.Content[i].Value == "rules" {
+			rules = yamlNodeTarget(root.Content[i+1])
+			break
+		}
+	}
+	if rules == nil || rules.Kind != yaml.SequenceNode {
+		return nil
+	}
+	for _, item := range rules.Content {
+		rule := yamlNodeTarget(item)
+		if rule == nil || rule.Kind != yaml.MappingNode {
+			continue
+		}
+		seenKernel := false
+		for i := 0; i+1 < len(rule.Content); i += 2 {
+			key, value := rule.Content[i], rule.Content[i+1]
+			if key.Kind != yaml.ScalarNode || key.Value != "kernel" {
+				continue
+			}
+			if seenKernel {
+				return fmt.Errorf("line %d: duplicate rule kernel key", key.Line)
+			}
+			seenKernel = true
+			if value.Kind == yaml.AliasNode {
+				return fmt.Errorf("line %d: YAML aliases are not allowed for kernel", value.Line)
+			}
+			if value.Kind != yaml.MappingNode {
+				return fmt.Errorf("line %d: kernel must be a mapping", value.Line)
+			}
+		}
+	}
+	return nil
+}
+
 func ParseConfig(b []byte) (*Config, error) {
+	if err := validateKernelNodes(b); err != nil {
+		return nil, err
+	}
 	var cfg Config
 	dec := yaml.NewDecoder(bytes.NewReader(b))
 	dec.KnownFields(true)

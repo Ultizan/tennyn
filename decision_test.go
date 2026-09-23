@@ -121,6 +121,30 @@ func TestDecisionKernelRejectsInvalidYAML(t *testing.T) {
 	})
 }
 
+func TestKernelRejectsWholeBlockAliasAndNull(t *testing.T) {
+	src := decisionFixture(t)
+	t.Run("whole block alias", func(t *testing.T) {
+		parts := strings.SplitN(src, "    kernel:\n", 2)
+		if len(parts) != 2 {
+			t.Fatal("kernel block missing from fixture")
+		}
+		lines := strings.Split(strings.TrimSuffix(parts[1], "\n"), "\n")
+		for i := range lines {
+			lines[i] = strings.TrimPrefix(lines[i], "  ")
+		}
+		aliasConfig := "anchors:\n  shared: &anchor\n" + strings.Join(lines, "\n") + "\n" + parts[0] + "    kernel: *anchor\n"
+		if _, err := ParseConfig([]byte(aliasConfig)); err == nil {
+			t.Fatal("expected whole-kernel alias to be rejected")
+		}
+	})
+	t.Run("explicit null", func(t *testing.T) {
+		nullConfig := strings.Replace(src, "    kernel:\n", "    kernel: null\n", 1)
+		if _, err := ParseConfig([]byte(nullConfig)); err == nil {
+			t.Fatal("expected explicit null kernel to be rejected")
+		}
+	})
+}
+
 func TestDecisionAllowsExhaustedZeroLimits(t *testing.T) {
 	src := decisionFixture(t)
 	for _, old := range []string{"evaluator_calls: 3", "evaluator_parallel: 2", "evaluator_tokens: 768", "decision_timeout_ms: 5000", "think_repeats: 1"} {
