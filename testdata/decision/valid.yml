@@ -1,0 +1,22 @@
+rules:
+  - name: choose
+    when: [src/]
+    require: [README.md]
+    kernel:
+      version: 1
+      baseline: incumbent-v1
+      utility: verified-progress-v1
+      horizon_steps: 4
+      features: [progress]
+      actions: [read_context, run_tests]
+      theta_q: [10000]
+      weights_q: [[10000], [10000]]
+      limits:
+        candidates: 16
+        features: 8
+        selected: 1
+        evaluator_calls: 3
+        evaluator_parallel: 2
+        evaluator_tokens: 768
+        decision_timeout_ms: 5000
+        think_repeats: 1

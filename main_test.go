@@ -9,6 +9,62 @@ import (
 	"testing"
 )
 
+func TestDecisionCompileCommand(t *testing.T) {
+	config := `rules:
+  - name: choose
+    when: [src/]
+    require: [README.md]
+    kernel:
+      version: 1
+      baseline: incumbent-v1
+      utility: verified-progress-v1
+      horizon_steps: 4
+      features: [progress]
+      actions: [read_context, run_tests]
+      theta_q: [10000]
+      weights_q: [[10000], [10000]]
+      limits:
+        candidates: 16
+        features: 8
+        selected: 1
+        evaluator_calls: 0
+        evaluator_parallel: 0
+        evaluator_tokens: 0
+        decision_timeout_ms: 0
+        think_repeats: 0
+`
+	path := filepath.Join(t.TempDir(), "tennyn.yml")
+	if err := os.WriteFile(path, []byte(config), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, out, errb := runCLI(t, "", "--config", path, "decision", "compile", "--rule", "choose")
+	if code != 0 || !strings.Contains(out, `"digest":"`) || !strings.Contains(out, `"weights_q":[[10000],[10000]]`) {
+		t.Fatalf("decision compile: code %d out %q err %q", code, out, errb)
+	}
+}
+
+func TestKernelDoesNotChangeCheckResults(t *testing.T) {
+	plain := `rules:
+  - name: choose
+    when: [src/]
+    require: [README.md]
+`
+	withKernel := decisionFixture(t)
+	plainPath := filepath.Join(t.TempDir(), "plain.yml")
+	kernelPath := filepath.Join(t.TempDir(), "kernel.yml")
+	if err := os.WriteFile(plainPath, []byte(plain), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(kernelPath, []byte(withKernel), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	codePlain, outPlain, _ := runCLI(t, "src/a.go\n", "--config", plainPath, "check", "--stdin")
+	codeKernel, outKernel, _ := runCLI(t, "src/a.go\n", "--config", kernelPath, "check", "--stdin")
+	if codePlain != codeKernel || outPlain != outKernel {
+		t.Fatalf("kernel changed check: plain %d %q, kernel %d %q", codePlain, outPlain, codeKernel, outKernel)
+	}
+}
+
 func TestVersionCommand(t *testing.T) {
 	var out, errb bytes.Buffer
 	if code := run([]string{"version"}, strings.NewReader(""), &out, &errb); code != 0 || !strings.HasPrefix(out.String(), "tennyn ") {

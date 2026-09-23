@@ -76,12 +76,13 @@ func (l *patternList) UnmarshalYAML(n *yaml.Node) error {
 }
 
 type Rule struct {
-	Name    string      `yaml:"name" json:"rule"`
-	When    patternList `yaml:"when" json:"when"`
-	Require patternList `yaml:"require" json:"require"`
-	Why     string      `yaml:"why,omitempty" json:"why,omitempty"`
-	Owner   string      `yaml:"owner,omitempty" json:"owner,omitempty"`
-	Bypass  string      `yaml:"bypass,omitempty" json:"bypass,omitempty"`
+	Name    string            `yaml:"name" json:"rule"`
+	Kernel  *DecisionContract `yaml:"kernel,omitempty" json:"-"`
+	When    patternList       `yaml:"when" json:"when"`
+	Require patternList       `yaml:"require" json:"require"`
+	Why     string            `yaml:"why,omitempty" json:"why,omitempty"`
+	Owner   string            `yaml:"owner,omitempty" json:"owner,omitempty"`
+	Bypass  string            `yaml:"bypass,omitempty" json:"bypass,omitempty"`
 	when    []Pattern
 	require []Pattern
 }
@@ -111,6 +112,12 @@ func ParseConfig(b []byte) (*Config, error) {
 	dec := yaml.NewDecoder(bytes.NewReader(b))
 	dec.KnownFields(true)
 	if err := dec.Decode(&cfg); err != nil && !errors.Is(err, io.EOF) {
+		return nil, err
+	}
+	var extra any
+	if err := dec.Decode(&extra); err == nil {
+		return nil, errors.New("multiple YAML documents are not allowed")
+	} else if !errors.Is(err, io.EOF) {
 		return nil, err
 	}
 	if len(cfg.Rules) == 0 {
