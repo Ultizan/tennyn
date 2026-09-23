@@ -21,6 +21,7 @@ const usage = `usage: tennyn [--config tennyn.yml] [--json] <command>
   coverage [--all]               files no rule watches, dead rules, broken require targets (exit 1 on broken)
   stale                          rules whose watched paths moved after their required paths (exit 1 if any)
   cheatsheet [--check FILE]      markdown table of every rule (or verify FILE already has it)
+  decision compile --rule NAME   compile a rule kernel contract to canonical JSON
   version
 `
 
@@ -90,6 +91,8 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return c.stale()
 	case "cheatsheet":
 		return c.cheatsheet(sub)
+	case "decision":
+		return c.decision(sub)
 	default:
 		fmt.Fprint(stderr, usage)
 		return 2
@@ -327,4 +330,28 @@ func sortedKeys(m map[string]int) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+func (c *cli) decision(args []string) int {
+	if len(args) == 0 || args[0] != "compile" {
+		fmt.Fprint(c.stderr, usage)
+		return 2
+	}
+	fs := flag.NewFlagSet("decision compile", flag.ContinueOnError)
+	fs.SetOutput(c.stderr)
+	rule := fs.String("rule", "", "rule name to compile")
+	if err := fs.Parse(args[1:]); err != nil {
+		return 2
+	}
+	if *rule == "" || len(fs.Args()) != 0 {
+		fmt.Fprint(c.stderr, usage)
+		return 2
+	}
+	out, err := CompileDecision(c.cfg, *rule)
+	if err != nil {
+		fmt.Fprintf(c.stderr, "tennyn: %v\n", err)
+		return 2
+	}
+	fmt.Fprintln(c.stdout, string(out))
+	return 0
 }

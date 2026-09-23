@@ -68,6 +68,7 @@ tennyn is a Bonsai Collective tool. It grew out of the docs tripwire that guarde
 | `tennyn coverage [--all]` | Which files does no rule watch? Which rules watch nothing? Which `require` targets no longer exist? Files matching the config's `ignore:` list are excluded and reported as `ignored`. | a require target matches no tracked file |
 | `tennyn stale` | Which rules' watched paths last moved at least a day after their required paths did? Honors a `verified: YYYY-MM-DD` header, optionally inside an HTML comment, within the first 2 KiB of a required file. A fresh, ever-touched rule also reports `fresh_by`: the `require` pattern (or `verified: <file>`) that kept it fresh. | any rule is stale |
 | `tennyn cheatsheet [--check FILE]` | The rules as a markdown table for your CONTRIBUTING or AGENTS file, or (`--check`) whether FILE already contains that exact table. | never for the plain table; with `--check`, FILE does not contain the table (exit 2 if FILE is unreadable) |
+| `tennyn decision compile --rule NAME` | Compile that rule's optional version-1 decision kernel to canonical JSON with a SHA-256 digest. | the config is invalid or the rule is missing, ambiguous or has no kernel (exit 2) |
 
 Every command takes `--json` (before the command) for machine use and `--config PATH` to point at a different rules file. Exit 2 means a config or git problem and the message says which.
 
@@ -81,8 +82,38 @@ Every command takes `--json` (before the command) for machine use and `--config 
 | `rules[].why` | no | one line shown on failure and in the cheat sheet |
 | `rules[].owner` | no | shown in `why` and the cheat sheet |
 | `rules[].bypass` | no | PR label that waives this rule; absent means no waiver |
+| `rules[].kernel` | no | strict version-1 decision contract used only by `decision compile`; co-change commands ignore scores |
 | `ignore` | no | patterns excluded from `coverage`'s totals and `uncovered`/`uncovered_files` (reported as `ignored`); does not affect `check`, `why`, `stale`, dead rules or broken targets |
 | `anchors` | no | scratch space for YAML anchors; ignored |
+
+A rule may carry an optional decision contract. Compile it explicitly with `tennyn --config tennyn.yml decision compile --rule choose`; this emits compact JSON in fixed field order. The SHA-256 digest covers that canonical JSON without the `digest` field. Version 1 requires unique nonempty action and feature IDs (1–16 actions, 1–8 features), `limits.features` as a capacity at least as large as the feature list (up to 8), `selected: 1`, positive `horizon_steps`, theta values in [-10000, 10000], weights in [0, 10000], and nonnegative signed-64-bit limits. Unknown or duplicate kernel keys, YAML aliases inside `kernel`, extra YAML documents, fractional numbers, and mismatched matrix axes are rejected. A kernel does not alter `check`, `why`, or other co-change results.
+
+For example, `weights_q` rows follow the `actions` order and each row follows `features` order:
+
+```yaml
+rules:
+  - name: choose
+    when: [src/]
+    require: [README.md]
+    kernel:
+      version: 1
+      baseline: incumbent-v1
+      utility: verified-progress-v1
+      horizon_steps: 4
+      features: [progress]
+      actions: [read_context, run_tests]
+      theta_q: [10000]
+      weights_q: [[10000], [10000]]
+      limits:
+        candidates: 16
+        features: 8
+        selected: 1
+        evaluator_calls: 3
+        evaluator_parallel: 2
+        evaluator_tokens: 768
+        decision_timeout_ms: 5000
+        think_repeats: 1
+```
 
 Patterns are anchored at the repo root. `dir/` means everything under `dir`; a plain path is exact; globs use `*`, `?`, `[..]`, `{a,b}` and `**`. Lists may nest and are flattened, so `require: [RUNBOOK-*.md, *shared-docs]` works with a YAML anchor.
 
